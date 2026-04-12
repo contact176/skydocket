@@ -1,0 +1,36 @@
+export const fakeWeather = {
+  location: "Toronto, ON",
+  dateLabel: "Friday",
+  currentTemp: 58,
+  currentCondition: "Cool morning, light rain later",
+  pollenLevel: "high",
+  hourly: [
+    { hour: 6, temp: 54, rainChance: 10, wind: 8, pollen: "medium" },
+    { hour: 7, temp: 55, rainChance: 10, wind: 9, pollen: "medium" },
+    { hour: 8, temp: 57, rainChance: 10, wind: 10, pollen: "medium" },
+    { hour: 9, temp: 60, rainChance: 10, wind: 10, pollen: "medium" },
+    { hour: 10, temp: 63, rainChance: 10, wind: 11, pollen: "medium" },
+    { hour: 11, temp: 66, rainChance: 10, wind: 11, pollen: "medium" },
+    { hour: 12, temp: 69, rainChance: 15, wind: 12, pollen: "medium" },
+    { hour: 13, temp: 71, rainChance: 15, wind: 12, pollen: "medium" },
+    { hour: 14, temp: 72, rainChance: 20, wind: 13, pollen: "medium" },
+    { hour: 15, temp: 72, rainChance: 25, wind: 14, pollen: "medium" },
+    { hour: 16, temp: 70, rainChance: 55, wind: 14, pollen: "high" },
+    { hour: 17, temp: 68, rainChance: 70, wind: 15, pollen: "high" },
+    { hour: 18, temp: 66, rainChance: 75, wind: 15, pollen: "high" },
+    { hour: 19, temp: 64, rainChance: 65, wind: 14, pollen: "high" },
+    { hour: 20, temp: 62, rainChance: 45, wind: 13, pollen: "high" },
+    { hour: 21, temp: 60, rainChance: 20, wind: 11, pollen: "high" },
+  ],
+};
+
+export const sampleProfile = {
+  adults: 2,
+  kids: 2,
+  pets: 1,
+  schoolPickupHour: 16,
+  commuteHour: 17,
+  coldThreshold: 60,
+  allergySensitive: true,
+  hasDog: true,
+};

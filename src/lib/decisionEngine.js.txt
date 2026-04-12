@@ -1,0 +1,114 @@
+function formatHour(hour) {
+  if (hour === 12) return "12:00 PM";
+  if (hour > 12) return `${hour - 12}:00 PM`;
+  return `${hour}:00 AM`;
+}
+
+function findBestOutdoorWindow(hourly) {
+  const candidates = hourly.filter(
+    (h) => h.rainChance < 30 && h.wind <= 14 && h.temp >= 60 && h.temp <= 78
+  );
+
+  if (candidates.length === 0) return "No good outdoor window today";
+
+  let bestStart = candidates[0].hour;
+  let bestEnd = candidates[0].hour;
+  let currentStart = candidates[0].hour;
+  let currentEnd = candidates[0].hour;
+
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].hour === currentEnd + 1) {
+      currentEnd = candidates[i].hour;
+    } else {
+      if (currentEnd - currentStart > bestEnd - bestStart) {
+        bestStart = currentStart;
+        bestEnd = currentEnd;
+      }
+      currentStart = candidates[i].hour;
+      currentEnd = candidates[i].hour;
+    }
+  }
+
+  if (currentEnd - currentStart > bestEnd - bestStart) {
+    bestStart = currentStart;
+    bestEnd = currentEnd;
+  }
+
+  return `${formatHour(bestStart)}–${formatHour(bestEnd)}`;
+}
+
+function getClothingAdvice(currentTemp, coldThreshold) {
+  if (currentTemp <= coldThreshold - 5) return "Dress kids in layers and bring a light jacket.";
+  if (currentTemp <= coldThreshold) return "Layers are a good call this morning.";
+  if (currentTemp <= 72) return "A light top should be fine for most of the day.";
+  return "Keep it light today. No jacket needed.";
+}
+
+function getLeaveEarlyAdvice(hourly, commuteHour) {
+  const commuteBlock = hourly.find((h) => h.hour === commuteHour);
+  if (!commuteBlock) return "Commute looks normal today.";
+
+  if (commuteBlock.rainChance >= 50 || commuteBlock.wind >= 15) {
+    return `Leave 10 minutes early after ${formatHour(commuteHour)}.`;
+  }
+
+  return "No need to leave early today.";
+}
+
+function getPickupAdvice(hourly, pickupHour) {
+  const block = hourly.find((h) => h.hour === pickupHour);
+  if (!block) return "Pickup looks clear.";
+
+  if (block.rainChance >= 50) return "Bring umbrellas for pickup.";
+  if (block.wind >= 15) return "Expect a windy pickup.";
+  return "Pickup weather looks manageable.";
+}
+
+function getDogWalkAdvice(hourly, hasDog) {
+  if (!hasDog) return null;
+
+  const goodDogHours = hourly.filter(
+    (h) => h.rainChance < 30 && h.temp >= 55 && h.temp <= 75
+  );
+
+  if (goodDogHours.length === 0) return "Dog walk timing looks rough today.";
+
+  return `Best dog walk window starts around ${formatHour(goodDogHours[0].hour)}.`;
+}
+
+function getPollenAdvice(hourly, allergySensitive) {
+  if (!allergySensitive) return null;
+
+  const highPollenLater = hourly.some((h) => h.hour >= 17 && h.pollen === "high");
+  if (highPollenLater) return "High pollen tonight. Limit outdoor time later if possible.";
+
+  return "Pollen looks manageable today.";
+}
+
+export function buildDailyDecisionPack(weather, profile) {
+  const summary = `${weather.currentCondition}, ${weather.pollenLevel} pollen by evening.`;
+  const clothing = getClothingAdvice(weather.currentTemp, profile.coldThreshold);
+  const outdoorWindow = findBestOutdoorWindow(weather.hourly);
+  const leaveAdvice = getLeaveEarlyAdvice(weather.hourly, profile.commuteHour);
+  const pickupAdvice = getPickupAdvice(weather.hourly, profile.schoolPickupHour);
+  const dogAdvice = getDogWalkAdvice(weather.hourly, profile.hasDog);
+  const pollenAdvice = getPollenAdvice(weather.hourly, profile.allergySensitive);
+
+  return {
+    summary,
+    clothing,
+    outdoorWindow,
+    leaveAdvice,
+    pickupAdvice,
+    dogAdvice,
+    pollenAdvice,
+    recommendations: [
+      clothing,
+      `Best outdoor play window: ${outdoorWindow}.`,
+      pickupAdvice,
+      leaveAdvice,
+      ...(dogAdvice ? [dogAdvice] : []),
+      ...(pollenAdvice ? [pollenAdvice] : []),
+    ],
+  };
+}
