@@ -78,16 +78,18 @@ export async function saveProfileToSupabase(userId, profile) {
 export async function loadProfileFromSupabase(userId) {
   if (!SUPABASE_ENABLED || !userId) return null;
 
+  // .maybeSingle() returns null (not an error) when no profile row exists yet.
+  // .single() throws a 406 for zero rows, which is the bug we're fixing.
   const { data, error } = await supabase
     .from("profiles")
     .select("household_data, is_premium")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.warn("[SKY] Supabase profile load failed:", error.message);
     return null;
   }
 
-  return data;
+  return data; // null when no profile exists — callers handle this gracefully
 }

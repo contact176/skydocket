@@ -2,24 +2,41 @@ import React, { useState, useEffect } from "react";
 import { CloudSun, UserCircle2, LogOut } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { fakeWeather, sampleProfile } from "./data/fakeWeather";
-import { buildDailyDecisionPack } from "./lib/decisionEngine";
-import { fetchWeatherForCoords, resolveCoords, DEFAULTS } from "./lib/weatherService";
+import { buildDailyDecisionPack, buildActionPlan } from "./lib/decisionEngine";
+import { buildCostIntelligence } from "./lib/costEngine";
+import { buildContextualStory } from "./lib/storyEngine";
+import { fetchWeatherForCoords, fetchWeekForecast, resolveCoords, DEFAULTS } from "./lib/weatherService";
 import { supabase, SUPABASE_ENABLED } from "./lib/supabaseClient";
 import { signOut, loadProfileFromSupabase, saveProfileToSupabase } from "./lib/authService";
 import { PremiumProvider } from "./context/PremiumContext";
 import TabNav from "./components/TabNav";
 import OnboardingModal from "./components/OnboardingModal";
+import SplashScreen from "./components/SplashScreen";
+import AuthGate from "./components/AuthGate";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import AlertsScreen from "./screens/AlertsScreen";
 import PremiumScreen from "./screens/PremiumScreen";
 
-const STORAGE_KEY    = "skydocket_profile";
-const ONBOARDED_KEY  = "skydocket_onboarded";
+const STORAGE_KEY       = "skydocket_profile";
+const ONBOARDED_KEY     = "skydocket_onboarded";
+const AUTH_DISMISSED_KEY = "skydocket_auth_dismissed";
+
+// ── Safe localStorage helpers ──────────────────────────────────────────────────
+// Safari private mode throws QuotaExceededError on setItem. Wrap every write.
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) { void e; }
+}
+function lsRemove(key) {
+  try { localStorage.removeItem(key); } catch (e) { void e; }
+}
+function lsGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
 
 function loadProfile() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = lsGet(STORAGE_KEY);
     if (stored) return { ...sampleProfile, ...JSON.parse(stored) };
   } catch {
     // ignore parse errors
@@ -28,7 +45,14 @@ function loadProfile() {
 }
 
 function loadOnboardingDone() {
-  return localStorage.getItem(ONBOARDED_KEY) === "true";
+  return lsGet(ONBOARDED_KEY) === "true";
+}
+
+function loadAuthGateDone() {
+  // When Supabase is active, always start with the gate closed.
+  // The auth listener unlocks it once a real session is confirmed.
+  if (!SUPABASE_ENABLED) return true;
+  return false;
 }
 
 const screenVariants = {
@@ -44,21 +68,33 @@ export default function App() {
   // Onboarding — show once on first launch
   const [onboardingDone, setOnboardingDone] = useState(loadOnboardingDone);
 
+  // Splash + auth gate
+  const [splashDone,   setSplashDone]   = useState(false);
+  const [authGateDone, setAuthGateDone] = useState(loadAuthGateDone);
+
+  // Live clock hour — refreshes every 5 minutes so the story card escalates automatically
+  const [nowHour, setNowHour] = useState(() => new Date().getHours());
+
   // Supabase auth
   const [user, setUser] = useState(null);
 
   // Live weather state
   const [weather, setWeather]               = useState(null);
+  const [weekForecast, setWeekForecast]     = useState(null);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
   const [locationStatus, setLocationStatus] = useState("pending");
 
+  // ── Splash auto-dismiss ────────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setSplashDone(true), 2700);
+    return () => clearTimeout(t);
+  }, []);
+
   // ── Profile helpers ────────────────────────────────────────────────────────
-  // Wraps setProfile so every change also syncs to Supabase in the background.
   function setProfile(updater) {
     setProfileState((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      // Background Supabase sync — never blocks the UI
       if (user) saveProfileToSupabase(user.id, next).catch(() => {});
       return next;
     });
@@ -73,11 +109,27 @@ export default function App() {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
+        // Unlock the app once a real session exists
+        if (currentUser) {
+          setAuthGateDone(true);
+        } else {
+          // User signed out — send them back to the auth gate
+          setAuthGateDone(false);
+          lsRemove(AUTH_DISMISSED_KEY);
+        }
+
         if (currentUser && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
           const remote = await loadProfileFromSupabase(currentUser.id);
           if (remote?.household_data) {
-            // Remote profile wins on sign-in — merge over sampleProfile defaults
+            // Returning user — restore their profile and skip onboarding
             setProfileState({ ...sampleProfile, ...remote.household_data });
+            lsSet(ONBOARDED_KEY, "true");
+            setOnboardingDone(true);
+          } else {
+            // Brand new user — clear any stale guest onboarding so the
+            // setup wizard runs and customises their fresh dashboard.
+            lsRemove(ONBOARDED_KEY);
+            setOnboardingDone(false);
           }
         }
       }
@@ -88,50 +140,99 @@ export default function App() {
 
   // ── Persist profile to localStorage ────────────────────────────────────────
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    lsSet(STORAGE_KEY, JSON.stringify(profile));
   }, [profile]);
+
+  // ── Clock tick ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNowHour(new Date().getHours());
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Two-phase weather fetch ────────────────────────────────────────────────
   useEffect(() => {
-    // Phase 1: immediate fetch with default coordinates (never blocks the UI)
+    // Phase 1 — fire immediately with default coords (Toronto fallback)
     fetchWeatherForCoords(DEFAULTS.lat, DEFAULTS.lon, DEFAULTS.location)
       .then((data) => { setWeather(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
 
-    // Phase 2: upgrade to real location once geolocation resolves
+    fetchWeekForecast(DEFAULTS.lat, DEFAULTS.lon)
+      .then(setWeekForecast)
+      .catch(() => {}); // silent fail — week data is premium content, not critical
+
+    // Phase 2 — upgrade both forecasts once geolocation resolves
     resolveCoords()
-      .then(({ lat, lon, location }) => fetchWeatherForCoords(lat, lon, location))
-      .then((data) => { setWeather(data); setLocationStatus("resolved"); })
+      .then(({ lat, lon, location }) => {
+        fetchWeatherForCoords(lat, lon, location)
+          .then((data) => { setWeather(data); setLocationStatus("resolved"); })
+          .catch(() => {});
+        fetchWeekForecast(lat, lon)
+          .then(setWeekForecast)
+          .catch(() => {});
+      })
       .catch((err) => {
-        const code = err?.code; // 1=PERMISSION_DENIED 2=UNAVAILABLE 3=TIMEOUT
+        const code = err?.code;
         console.error("[SKY] Geolocation failed — code:", code, err?.message ?? err);
         setLocationStatus("failed");
       });
   }, []);
 
-  // ── Onboarding complete handler ────────────────────────────────────────────
+  // ── Onboarding handlers ────────────────────────────────────────────────────
   function handleOnboardingComplete(partialProfile) {
     setProfile((prev) => ({ ...prev, ...partialProfile }));
-    localStorage.setItem(ONBOARDED_KEY, "true");
+    lsSet(ONBOARDED_KEY, "true");
     setOnboardingDone(true);
   }
 
-  // ── Onboarding reset (called from ProfileScreen) ───────────────────────────
   function resetOnboarding() {
-    localStorage.removeItem(ONBOARDED_KEY);
+    lsRemove(ONBOARDED_KEY);
     setOnboardingDone(false);
   }
 
-  // ── Auth handlers ─────────────────────────────────────────────────────────
+  // ── Auth gate handlers ─────────────────────────────────────────────────────
+  function handleAuthGateContinue() {
+    lsSet(AUTH_DISMISSED_KEY, "true");
+    setAuthGateDone(true);
+  }
+
+  function handleAuthGateSuccess(signedInUser) {
+    if (signedInUser) {
+      lsSet(AUTH_DISMISSED_KEY, "true");
+      setAuthGateDone(true);
+    }
+  }
+
+  // ── Auth sign-out ──────────────────────────────────────────────────────────
   async function handleSignOut() {
     await signOut();
     setUser(null);
+    setAuthGateDone(false);
+    lsRemove(AUTH_DISMISSED_KEY);
   }
 
   // ── Derived state ─────────────────────────────────────────────────────────
-  const activeWeather = weather ?? fakeWeather;
-  const usingFallback = weather === null;
-  const decisionPack  = buildDailyDecisionPack(activeWeather, profile);
+  const activeWeather    = weather ?? fakeWeather;
+  const usingFallback    = weather === null;
+  const decisionPack     = buildDailyDecisionPack(activeWeather, profile);
+  const storyCard        = buildContextualStory(activeWeather, profile, nowHour);
+  const actionPlan       = buildActionPlan(activeWeather, profile, nowHour);
+  const costIntelligence = buildCostIntelligence(activeWeather);
+
+  // ── Behavioral pattern tracker ─────────────────────────────────────────────
+  // Must live AFTER derived state so storyCard is in scope for the dependency.
+  useEffect(() => {
+    if (!storyCard?.category) return;
+    try {
+      const raw      = lsGet("skydocket_patterns");
+      const patterns = raw ? JSON.parse(raw) : {};
+      patterns[storyCard.category] = (patterns[storyCard.category] ?? 0) + 1;
+      lsSet("skydocket_patterns", JSON.stringify(patterns));
+    } catch {
+      // ignore
+    }
+  }, [storyCard?.category]);
 
   function renderScreen() {
     switch (activeTab) {
@@ -140,6 +241,11 @@ export default function App() {
           <DashboardScreen
             fakeWeather={activeWeather}
             decisionPack={decisionPack}
+            storyCard={storyCard}
+            actionPlan={actionPlan}
+            costIntelligence={costIntelligence}
+            weekForecast={weekForecast}
+            profile={profile}
             loading={loading}
             error={error}
             usingFallback={usingFallback}
@@ -165,7 +271,7 @@ export default function App() {
           />
         );
       case "premium":
-        return <PremiumScreen />;
+        return <PremiumScreen user={user} />;
       default:
         return null;
     }
@@ -175,9 +281,25 @@ export default function App() {
     <PremiumProvider onUpgrade={() => setActiveTab("premium")}>
       <div className="min-h-screen bg-[#070d1b] text-slate-100">
 
-        {/* ── Onboarding modal (shown once on first launch) ───────────────── */}
+        {/* ── Splash screen (always shown on load, exits after ~2.7s) ────────── */}
         <AnimatePresence>
-          {!onboardingDone && (
+          {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+        </AnimatePresence>
+
+        {/* ── Auth gate (shown after splash when not signed in) ───────────────── */}
+        <AnimatePresence>
+          {splashDone && !authGateDone && (
+            <AuthGate
+              profile={profile}
+              onContinue={handleAuthGateContinue}
+              onAuthSuccess={handleAuthGateSuccess}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* ── Onboarding modal (shown once after auth gate, on first launch) ──── */}
+        <AnimatePresence>
+          {splashDone && authGateDone && !onboardingDone && (
             <OnboardingModal onComplete={handleOnboardingComplete} />
           )}
         </AnimatePresence>
@@ -198,7 +320,6 @@ export default function App() {
               <div className="text-xs text-slate-400">Weather, translated into action.</div>
             </div>
 
-            {/* Auth status indicator (only visible when Supabase is configured) */}
             {SUPABASE_ENABLED && user && (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-700 px-3 py-1.5">

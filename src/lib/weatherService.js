@@ -142,7 +142,84 @@ function normalizeOpenMeteo(data, location) {
   };
 }
 
+// ── Week forecast normaliser ──────────────────────────────────────────────────
+
+function wmoEmoji(code) {
+  if (code === 0)  return "☀️";
+  if (code <= 3)   return "⛅";
+  if (code <= 48)  return "🌫️";
+  if (code <= 55)  return "🌦️";
+  if (code <= 65)  return "🌧️";
+  if (code <= 77)  return "❄️";
+  if (code <= 82)  return "🌦️";
+  if (code <= 86)  return "🌨️";
+  if (code >= 95)  return "⛈️";
+  return "🌡️";
+}
+
+function dayTip(high, rainChance, weatherCode) {
+  if (weatherCode >= 95)     return "Thunderstorm risk — keep plans flexible";
+  if (rainChance >= 60)      return "Rain likely — great day for indoor plans";
+  if (rainChance >= 40)      return "Chance of rain — pack an umbrella";
+  if (high >= 90)            return "Very hot — limit outdoor time, stay hydrated";
+  if (high <= 32)            return "Freezing temps — full layers, allow extra commute time";
+  if (high <= 45)            return "Cold day — bundle up before heading out";
+  if (high >= 68 && high <= 82 && rainChance < 25) return "Ideal conditions — great day for outdoor plans";
+  return null;
+}
+
+function parseDayLabel(dateStr) {
+  // Append noon time to avoid timezone-shift issues on short date strings
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function normalizeWeekForecast(data) {
+  const { daily } = data;
+  const {
+    time,
+    temperature_2m_max,
+    temperature_2m_min,
+    precipitation_probability_max,
+    weathercode,
+  } = daily;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  return time.map((dateStr, i) => {
+    const high       = Math.round(temperature_2m_max[i]);
+    const rainChance = precipitation_probability_max[i] ?? 0;
+    const code       = weathercode[i];
+    return {
+      date:       dateStr,
+      dayLabel:   parseDayLabel(dateStr),
+      isToday:    dateStr === todayStr,
+      high,
+      low:        Math.round(temperature_2m_min[i]),
+      rainChance,
+      weatherCode: code,
+      emoji:      wmoEmoji(code),
+      condition:  wmoCondition(code, high),
+      tip:        dayTip(high, rainChance, code),
+    };
+  });
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
+
+export async function fetchWeekForecast(lat, lon) {
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude",         lat.toFixed(4));
+  url.searchParams.set("longitude",        lon.toFixed(4));
+  url.searchParams.set("daily",            "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode");
+  url.searchParams.set("temperature_unit", "fahrenheit");
+  url.searchParams.set("timezone",         "auto");
+  url.searchParams.set("forecast_days",    "7");
+
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`Open-Meteo week forecast returned HTTP ${res.status}`);
+
+  return normalizeWeekForecast(await res.json());
+}
 
 export async function fetchWeatherForCoords(lat, lon, location) {
   const url = new URL("https://api.open-meteo.com/v1/forecast");

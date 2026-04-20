@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Check, Star, Zap, Shield, Bell, MapPin, HeartHandshake } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePremium } from "../context/PremiumContext";
+import CheckoutModal from "../components/CheckoutModal";
 
 const FREE_FEATURES = [
   "Daily weather summary",
@@ -34,14 +35,35 @@ const featureItem = {
   show:   { opacity: 1, x: 0, transition: { duration: 0.2, ease: "easeOut" } },
 };
 
-export default function PremiumScreen() {
-  const [billing, setBilling] = useState("annual");
-  const { isPremium, setIsPremium } = usePremium();
+export default function PremiumScreen({ user }) {
+  const [billing, setBilling]         = useState("annual");
+  const [showCheckout, setShowCheckout] = useState(false);
+  const { isPremium, setIsPremium }   = usePremium();
 
   const monthly = billing === "monthly" ? 4.99 : (44.99 / 12).toFixed(2);
 
+  function handleUpgradeClick() {
+    setShowCheckout(true);
+  }
+
+  function handleCheckoutSuccess() {
+    setIsPremium(true);
+  }
+
   return (
     <>
+      {/* Checkout modal */}
+      <AnimatePresence>
+        {showCheckout && (
+          <CheckoutModal
+            billing={billing}
+            user={user}
+            onClose={() => setShowCheckout(false)}
+            onSuccess={handleCheckoutSuccess}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Hero */}
       <div className="mb-10 text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 px-3 py-1 text-sm font-medium text-blue-300">
@@ -171,16 +193,16 @@ export default function PremiumScreen() {
             </div>
           ) : (
             <button
-              onClick={() => setIsPremium(true)}
-              className="w-full rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 transition-colors"
+              onClick={handleUpgradeClick}
+              className="w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-[0.98] transition-all"
             >
               {billing === "annual"
-                ? "Start free trial · $44.99/yr"
-                : "Start free trial · $4.99/mo"}
+                ? "Upgrade now · $44.99/yr"
+                : "Upgrade now · $4.99/mo"}
             </button>
           )}
           <p className="mt-3 text-center text-xs text-slate-500">
-            14-day free trial · No credit card required · Cancel anytime
+            Secure payment · Cancel anytime
           </p>
         </motion.div>
       </div>

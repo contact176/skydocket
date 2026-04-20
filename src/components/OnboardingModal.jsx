@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Baby, Dog, Briefcase, Thermometer, Clock, ArrowRight, Check } from "lucide-react";
+import { Baby, Dog, Briefcase, Thermometer, Clock, ArrowRight, Check, Car, Navigation, Sun, Timer, DollarSign, Heart, CalendarCheck, Sunrise, Sunset, Bell, BellOff } from "lucide-react";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 6;
 
 // Departure time options — 5 AM through noon
 const DEPARTURE_OPTIONS = [5, 6, 7, 8, 9, 10, 11, 12];
@@ -21,7 +21,7 @@ function ProgressBar({ step }) {
           Step {step} of {TOTAL_STEPS}
         </span>
         <span className="text-xs text-slate-500">
-          {step === 1 ? "Household" : step === 2 ? "Comfort zone" : "Schedule"}
+          {step === 1 ? "Household" : step === 2 ? "Comfort zone" : step === 3 ? "Priorities" : step === 4 ? "Schedule style" : step === 5 ? "Departure" : "Lifestyle"}
         </span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-slate-700">
@@ -191,6 +191,244 @@ function DepartureStep({ value, onChange }) {
   );
 }
 
+function LifestyleOptionGrid({ opts, selected, onSelect }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {opts.map(({ value, icon: Icon, label, desc }) => {
+        const isSelected = selected === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className={`flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all ${
+              isSelected
+                ? "border-blue-500/60 bg-blue-500/10"
+                : "border-slate-700 bg-slate-800 hover:border-slate-600"
+            }`}
+          >
+            <Icon className={`h-5 w-5 ${isSelected ? "text-blue-400" : "text-slate-400"}`} />
+            <span className={`text-xs font-semibold ${isSelected ? "text-white" : "text-slate-300"}`}>
+              {label}
+            </span>
+            <span className="text-[10px] leading-tight text-slate-500">{desc}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LifestyleStep({ values, onChange }) {
+  const transportOpts = [
+    { value: "car",     icon: Car,        label: "Drive",   desc: "Car for commute and errands" },
+    { value: "transit", icon: Navigation, label: "Transit", desc: "Bus, train, or subway" },
+    { value: "walk",    icon: Sun,        label: "Walk",    desc: "Walk or bike when possible" },
+  ];
+  const workOpts = [
+    { value: "office", icon: Briefcase, label: "Office",  desc: "Commute to work daily" },
+    { value: "remote", icon: Sun,       label: "Remote",  desc: "Work from home most days" },
+    { value: "hybrid", icon: Car,       label: "Hybrid",  desc: "Mix of office and home" },
+  ];
+
+  function pick(key, value) {
+    onChange((prev) => ({ ...prev, [key]: value }));
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-1">How do you move through your day?</h2>
+      <p className="text-sm text-slate-400 mb-6">
+        Helps us time your commute alerts and find the best errand windows.
+      </p>
+
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+          Getting around
+        </p>
+        <LifestyleOptionGrid
+          opts={transportOpts}
+          selected={values.transportMode}
+          onSelect={(v) => pick("transportMode", v)}
+        />
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+          Where you work
+        </p>
+        <LifestyleOptionGrid
+          opts={workOpts}
+          selected={values.workLocation}
+          onSelect={(v) => pick("workLocation", v)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Step 3: Priorities ────────────────────────────────────────────────────────
+
+const PRIORITY_OPTIONS = [
+  {
+    value: "time",
+    icon:  Timer,
+    label: "Save time",
+    desc:  "Optimize my schedule, flag delays early",
+  },
+  {
+    value: "money",
+    icon:  DollarSign,
+    label: "Save money",
+    desc:  "Reduce energy costs, avoid expensive timing",
+  },
+  {
+    value: "stress",
+    icon:  Heart,
+    label: "Reduce stress",
+    desc:  "Fewer surprises, calm daily guidance",
+  },
+  {
+    value: "organized",
+    icon:  CalendarCheck,
+    label: "Stay organized",
+    desc:  "Clear priorities and action items daily",
+  },
+];
+
+function PrioritiesStep({ value, onChange }) {
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-1">What matters most to you?</h2>
+      <p className="text-sm text-slate-400 mb-6">
+        This shapes what we surface first every day. Pick one.
+      </p>
+      <div className="space-y-3">
+        {PRIORITY_OPTIONS.map(({ value: v, icon: Icon, label, desc }) => {
+          const selected = value === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v)}
+              className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
+                selected
+                  ? "border-blue-500/60 bg-blue-500/10"
+                  : "border-slate-700 bg-slate-800 hover:border-slate-600"
+              }`}
+            >
+              <div
+                className={`shrink-0 rounded-xl p-2.5 transition-colors ${
+                  selected ? "bg-blue-500/20 text-blue-400" : "bg-slate-700 text-slate-400"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className={`text-sm font-semibold ${selected ? "text-white" : "text-slate-300"}`}>
+                  {label}
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
+              </div>
+              <div
+                className={`shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                  selected ? "border-blue-500 bg-blue-500" : "border-slate-600"
+                }`}
+              >
+                {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 4: Schedule Style ────────────────────────────────────────────────────
+
+function ScheduleStyleStep({ values, onChange }) {
+  const timeOpts = [
+    { value: true,  icon: Sunrise, label: "Morning",  desc: "Peak productivity before noon" },
+    { value: false, icon: Sunset,  label: "Evening",  desc: "Hit my stride after 5 PM" },
+  ];
+  const alertOpts = [
+    { value: true,  icon: Bell,    label: "Proactive",   desc: "Remind me early, even if I didn't ask" },
+    { value: false, icon: BellOff, label: "Only when needed", desc: "Alert me when conditions are bad" },
+  ];
+
+  function selectRow(key, val) {
+    onChange((prev) => ({ ...prev, [key]: val }));
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-1">How do you manage your day?</h2>
+      <p className="text-sm text-slate-400 mb-6">
+        Helps us time suggestions and alerts to when they're actually useful.
+      </p>
+
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+          When are you most productive?
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {timeOpts.map(({ value: v, icon: Icon, label, desc }) => {
+            const selected = values.morningPerson === v;
+            return (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => selectRow("morningPerson", v)}
+                className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                  selected
+                    ? "border-blue-500/60 bg-blue-500/10"
+                    : "border-slate-700 bg-slate-800 hover:border-slate-600"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${selected ? "text-blue-400" : "text-slate-400"}`} />
+                <span className={`text-sm font-semibold ${selected ? "text-white" : "text-slate-300"}`}>
+                  {label}
+                </span>
+                <span className="text-[11px] leading-tight text-slate-500">{desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+          How should we alert you?
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {alertOpts.map(({ value: v, icon: Icon, label, desc }) => {
+            const selected = values.proactiveSuggestions === v;
+            return (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => selectRow("proactiveSuggestions", v)}
+                className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                  selected
+                    ? "border-blue-500/60 bg-blue-500/10"
+                    : "border-slate-700 bg-slate-800 hover:border-slate-600"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${selected ? "text-blue-400" : "text-slate-400"}`} />
+                <span className={`text-sm font-semibold ${selected ? "text-white" : "text-slate-300"}`}>
+                  {label}
+                </span>
+                <span className="text-[11px] leading-tight text-slate-500">{desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const stepVariants = {
   enter:  { opacity: 0, x: 30 },
   center: { opacity: 1, x: 0, transition: { duration: 0.22, ease: "easeOut" } },
@@ -214,8 +452,20 @@ export default function OnboardingModal({ onComplete }) {
   });
   // Step 2 local state
   const [coldThreshold, setColdThreshold] = useState(60);
-  // Step 3 local state
+  // Step 3 local state — priorities
+  const [priorityFocus, setPriorityFocus] = useState("time");
+  // Step 4 local state — schedule style
+  const [scheduleStyle, setScheduleStyle] = useState({
+    morningPerson:        true,
+    proactiveSuggestions: true,
+  });
+  // Step 5 local state — departure
   const [departureHour, setDepartureHour] = useState(8);
+  // Step 6 local state — lifestyle
+  const [lifestyle, setLifestyle] = useState({
+    transportMode: "car",
+    workLocation:  "office",
+  });
 
   function handleNext() {
     if (step < TOTAL_STEPS) {
@@ -224,11 +474,16 @@ export default function OnboardingModal({ onComplete }) {
     }
     // Final step — build partial profile and hand off
     onComplete({
-      kids:             household.hasKids ? 2 : 0,
-      hasDog:           household.hasDog,
-      pets:             household.hasDog ? 1 : 0,
+      kids:                 household.hasKids ? 2 : 0,
+      hasDog:               household.hasDog,
+      pets:                 household.hasDog ? 1 : 0,
       coldThreshold,
-      commuteHour:      departureHour,
+      priorityFocus,
+      morningPerson:        scheduleStyle.morningPerson,
+      proactiveSuggestions: scheduleStyle.proactiveSuggestions,
+      commuteHour:          departureHour,
+      transportMode:        lifestyle.transportMode,
+      workLocation:         lifestyle.workLocation,
       // schoolPickupHour defaults stay at their sampleProfile value
     });
   }
@@ -265,7 +520,16 @@ export default function OnboardingModal({ onComplete }) {
                 <ColdThresholdStep value={coldThreshold} onChange={setColdThreshold} />
               )}
               {step === 3 && (
+                <PrioritiesStep value={priorityFocus} onChange={setPriorityFocus} />
+              )}
+              {step === 4 && (
+                <ScheduleStyleStep values={scheduleStyle} onChange={setScheduleStyle} />
+              )}
+              {step === 5 && (
                 <DepartureStep value={departureHour} onChange={setDepartureHour} />
+              )}
+              {step === 6 && (
+                <LifestyleStep values={lifestyle} onChange={setLifestyle} />
               )}
             </motion.div>
           </AnimatePresence>

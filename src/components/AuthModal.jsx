@@ -11,8 +11,8 @@ import { signIn, signUp } from "../lib/authService";
  *   onClose   — called when the modal should close
  *   onSuccess — called with (user) when auth succeeds
  */
-export default function AuthModal({ profile, onClose, onSuccess }) {
-  const [mode, setMode]       = useState("signin"); // "signin" | "signup"
+export default function AuthModal({ profile, onClose, onSuccess, initialMode = "signin" }) {
+  const [mode, setMode]       = useState(initialMode); // "signin" | "signup"
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export default function AuthModal({ profile, onClose, onSuccess }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Backdrop */}

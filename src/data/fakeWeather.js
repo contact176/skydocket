@@ -33,4 +33,18 @@ export const sampleProfile = {
   coldThreshold: 60,
   allergySensitive: true,
   hasDog: true,
+  // Lifestyle
+  transportMode:        "car",       // "car" | "walk" | "transit"
+  workLocation:         "office",    // "office" | "remote" | "hybrid"
+  budgetSensitive:      true,
+  morningPerson:        true,
+  // Personalization engine fields
+  priorityFocus:        "time",      // "time" | "money" | "stress" | "organized"
+  proactiveSuggestions: true,        // true = alert early; false = only when bad
+  errandFrequency:      "weekly",    // "weekly" | "asNeeded"
+  // Schedule — user's recurring daily events
+  schedule: [
+    { id: "demo1", label: "Morning run",  hour: 7,  type: "outdoor" },
+    { id: "demo2", label: "Grocery run",  hour: 16, type: "errand"  },
+  ],
 };

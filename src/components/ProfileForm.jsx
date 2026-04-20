@@ -168,6 +168,54 @@ export default function ProfileForm({ profile, onChange }) {
           />
         </div>
       </div>
+
+      {/* ── Lifestyle section ───────────────────────────────────────────────── */}
+      <div className="mt-6 border-t border-slate-700/50 pt-6">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Lifestyle
+        </p>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="How you get around">
+            <select
+              value={profile.transportMode ?? "car"}
+              onChange={(e) => set("transportMode", e.target.value)}
+              className={inputCls}
+            >
+              <option value="car">Drive</option>
+              <option value="transit">Transit</option>
+              <option value="walk">Walk / Bike</option>
+            </select>
+          </Field>
+
+          <Field label="Where you work">
+            <select
+              value={profile.workLocation ?? "office"}
+              onChange={(e) => set("workLocation", e.target.value)}
+              className={inputCls}
+            >
+              <option value="office">Office</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+          </Field>
+
+          <div className="flex flex-col gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Preferences
+            </span>
+            <Toggle
+              label="Morning person"
+              checked={profile.morningPerson ?? true}
+              onChange={(v) => set("morningPerson", v)}
+            />
+            <Toggle
+              label="Budget tips"
+              checked={profile.budgetSensitive ?? false}
+              onChange={(v) => set("budgetSensitive", v)}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
