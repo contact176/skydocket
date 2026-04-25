@@ -1,4 +1,4 @@
-import js from '@eslint/js'
+﻿import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
@@ -6,7 +6,15 @@ import reactPlugin from 'eslint-plugin-react'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist/**',
+    'node_modules/**',
+    'build/**',
+    '.next/**',
+    'ios/App/App/public/**',
+    'ios/App/App/build/**',
+    'android/**',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -27,8 +35,6 @@ export default defineConfig([
       },
     },
     rules: {
-      // Mark variables used as JSX element names as "used" so no-unused-vars
-      // doesn't false-positive on <Icon />, <motion.div />, etc.
       'react/jsx-uses-vars': 'error',
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
