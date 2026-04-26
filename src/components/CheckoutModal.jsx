@@ -1,10 +1,11 @@
 /**
  * CheckoutModal — Stripe payment modal using CardElement + confirmCardPayment.
  *
- * Uses the classic CardElement flow (not PaymentElement) to avoid the
- * elements/sessions 401 that PaymentElement triggers on HTTP localhost.
+ * On web: full Stripe card form.
+ * On iOS/Android (Capacitor native): shows "Manage on Web" view instead —
+ * Apple guideline 3.1.1 forbids third-party payment processors for digital goods.
  *
- * Flow:
+ * Flow (web only):
  *  1. Modal opens → fetch PaymentIntent clientSecret from Supabase edge fn
  *  2. Render <Elements> (no clientSecret in options — avoids session handshake)
  *  3. User fills <CardElement> and clicks Pay
@@ -14,7 +15,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { X, Loader2, Check, Lock, CreditCard, ShieldCheck } from "lucide-react";
+import { X, Loader2, Check, Lock, CreditCard, ShieldCheck, ExternalLink } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -22,7 +23,11 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
+import { Capacitor } from "@capacitor/core";
 import { supabase, SUPABASE_ENABLED } from "../lib/supabaseClient";
+
+// True when running inside the iOS/Android native shell — Stripe is not allowed.
+const IS_NATIVE = Capacitor.isNativePlatform();
 
 // Loaded once at module level — never inside a component or effect
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -63,8 +68,6 @@ function CardForm({ clientSecret, billing, userId, onSuccess }) {
 
     const cardElement = elements.getElement(CardElement);
 
-    // confirmCardPayment talks directly to Stripe using the clientSecret.
-    // It does NOT call elements/sessions — completely bypasses that 401.
     const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
       clientSecret,
       { payment_method: { card: cardElement } }
@@ -77,10 +80,8 @@ function CardForm({ clientSecret, billing, userId, onSuccess }) {
     }
 
     if (paymentIntent?.status === "succeeded") {
-      // Show success immediately — don't block on the Supabase update
       onSuccess();
 
-      // Fire-and-forget profile update in the background
       if (SUPABASE_ENABLED && userId) {
         supabase
           .from("profiles")
@@ -97,19 +98,16 @@ function CardForm({ clientSecret, billing, userId, onSuccess }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Card input */}
       <div className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-3.5">
         <CardElement options={CARD_ELEMENT_OPTIONS} />
       </div>
 
-      {/* Error */}
       {error && (
         <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
         </p>
       )}
 
-      {/* Pay button */}
       <button
         type="submit"
         disabled={!stripe || loading}
@@ -123,13 +121,96 @@ function CardForm({ clientSecret, billing, userId, onSuccess }) {
 
       <p className="flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-        256-bit SSL · Secured by Stripe · Cancel anytime
+        256-bit SSL &middot; Secured by Stripe &middot; Cancel anytime
       </p>
     </form>
   );
 }
 
+// ── iOS/Android gate: no Stripe allowed — redirect to web ────────────────────
+
+function ManageOnWebView({ billing, onClose }) {
+  const perMonth = billing === "annual" ? "$3.75/mo" : "$4.99/mo";
+  const total    = billing === "annual" ? "$44.99 / year" : "$4.99 / month";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1,    y: 0  }}
+        exit={{    opacity: 0, scale: 0.96, y: 8  }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+        className="relative w-full max-w-md rounded-3xl border border-slate-700/50 bg-slate-900 p-8 shadow-2xl"
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-5 top-5 rounded-xl p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/30">
+            <CreditCard className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">Upgrade to Pro</h2>
+            <p className="text-xs text-slate-400">Peace of Mind Plan</p>
+          </div>
+        </div>
+
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-700/50 bg-slate-800/60 px-4 py-3.5">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {billing === "annual" ? "Annual plan" : "Monthly plan"}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {perMonth} &middot; billed {billing === "annual" ? "annually" : "monthly"}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-base font-bold text-white">{total}</p>
+            {billing === "annual" && (
+              <p className="text-xs font-medium text-emerald-400">Save 25%</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 px-5 py-4 mb-5">
+          <p className="text-sm font-semibold text-blue-300 mb-1">Subscribe on the web</p>
+          <p className="text-xs leading-5 text-slate-400">
+            To manage your subscription, visit{" "}
+            <span className="text-blue-400 font-medium">skydocket.app</span>{" "}
+            in your browser. Once subscribed, your Pro status syncs automatically
+            when you sign in on this device.
+          </p>
+        </div>
+
+        <a
+          href="https://skydocket.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 transition-colors"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Open skydocket.app
+        </a>
+
+        <p className="mt-3 text-center text-xs text-slate-600">
+          Already subscribed on web? Sign in above to sync your Pro status.
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Modal shell ───────────────────────────────────────────────────────────────
+// Hooks are always called unconditionally (Rules of Hooks). IS_NATIVE guard
+// lives inside the effect body and as an early return AFTER all hooks.
 
 export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
   const [clientSecret, setClientSecret] = useState(null);
@@ -140,8 +221,10 @@ export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
   const perMonth = billing === "annual" ? "$3.75/mo" : "$4.99/mo";
   const total    = billing === "annual" ? "$44.99 / year" : "$4.99 / month";
 
-  // Fetch PaymentIntent once when modal mounts
+  // Fetch PaymentIntent once when modal mounts — skipped entirely on native
   useEffect(() => {
+    if (IS_NATIVE) return;
+
     let active = true;
 
     const url    = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-intent`;
@@ -176,6 +259,11 @@ export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
   function handleSuccess() {
     setSucceeded(true);
     setTimeout(() => { onSuccess(); onClose(); }, 2400);
+  }
+
+  // Render the web-redirect view on iOS/Android — all hooks already called above
+  if (IS_NATIVE) {
+    return <ManageOnWebView billing={billing} onClose={onClose} />;
   }
 
   return (
@@ -234,7 +322,7 @@ export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
                   {billing === "annual" ? "Annual plan" : "Monthly plan"}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-400">
-                  {perMonth} · billed {billing === "annual" ? "annually" : "monthly"}
+                  {perMonth} &middot; billed {billing === "annual" ? "annually" : "monthly"}
                 </p>
               </div>
               <div className="text-right">
@@ -248,7 +336,7 @@ export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
             {!clientSecret && !fetchError && (
               <div className="flex items-center justify-center gap-3 py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-                <span className="text-sm text-slate-400">Setting up secure payment…</span>
+                <span className="text-sm text-slate-400">Setting up secure payment&hellip;</span>
               </div>
             )}
 
@@ -259,7 +347,6 @@ export default function CheckoutModal({ billing, user, onClose, onSuccess }) {
               </div>
             )}
 
-            {/* <Elements> has NO clientSecret option — prevents elements/sessions call */}
             {clientSecret && (
               <Elements stripe={stripePromise}>
                 <CardForm

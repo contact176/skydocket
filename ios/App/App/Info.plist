@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Skydocket uses your location to show accurate local weather and alerts for your area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Skydocket uses your location to show accurate local weather and alerts for your area.</string>
 </dict>
 </plist>
